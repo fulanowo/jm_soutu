@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "name": "JM 本子下载插件",
+  "version": "0.2.0",
+  "description": "基于 jmcomic 的本子下载插件，支持章节选择、PDF 合成与 Napcat 上传",
+  "author": {
+    "name": "yumemi1",
+    "url": "https://github.com/yumemi1"
+  },
+  "license": "MIT",
+  "host_application": {
+    "min_version": "0.8.0"
+  },
+  "homepage_url": "https://github.com/yumemi1",
+  "repository_url": "https://github.com/yumemi1/jm_plugin",
+  "keywords": ["jmcomic", "download", "pdf",  "本子"],
+  "categories": ["Utility Tools", "External Integration"],
+  "default_locale": "zh-CN",
+  "plugin_info": {
+    "is_built_in": false,
+    "plugin_type": "general",
+    "components": [
+      {
+        "type": "command",
+        "name": "jm",
+        "description": "下载 JM 本子为 PDF 并上传。用法：/jm ID 或 /jm ID 章节数"
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+# jm_plugin - 自动生成的配置文件
+
+[jm]
+
+# JM 漫画下载目录，为空默认 plugins/jm_plugin/data
+jm_data_dir = ""
+
+# 主人qq: 控制能否下载图片（为空则所有人都可以下载）
+owner_qq = ""  # 留空则不限制
+
+# Napcat 机器人框架的 API 基础 URL
+napcat_base_url = "http://127.0.0.1:3000"
+
+# PDF 最大页数限制
+max_pdf_pages = 300
+
+# 将压缩包伪装成指定格式
+use_encrypted_zip = true
+fake_extension = ".dat"   # 可以改成 .bin, .tmp 等
+
+[sotu]
+
+# SauceNAO API Key
+api_key = "你的key填在这里"
+# 代理（可选）
+proxy = ""    #替换为你实际的代理端口例如http://127.0.0.1:7890
+
