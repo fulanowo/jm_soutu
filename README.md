@@ -4,7 +4,7 @@
 
 ## 📖 简介
 
-JM 插件是为 [MaiBot](https://github.com/MaiM-with-u/MaiBot) 开发的内容下载与分享插件，面向 JMComic 图源。它可以：
+JM 搜图插件是为 [MaiBot](https://github.com/MaiM-with-u/MaiBot) 开发的内容下载与分享插件，是由https://github.com/yumemi1/jm_plugin二次开发而来，添加了以图搜本和关键词搜索的功能，并且增加了加密压缩包，面向 JMComic 图源。它可以：
 - 解析并下载指定本子（支持多章节选择）
 - 将图片合并为 PDF（可限制最大页数）
 - 生成加密压缩包并伪装格式（可选）
@@ -164,11 +164,6 @@ proxy = ""                             # 搜图代理（可选）
 3. 获得：JM_123456_01.pdf
 ```
 
-## 📸 效果演示（示例截图）
-
-![单章节本子下载](docs/screenshots/1.png)
-![多章节本子下载](docs/screenshots/2.png)
-![多章节本子下载](docs/screenshots/3.png)
 
 ## ⚠️ 注意事项
 
