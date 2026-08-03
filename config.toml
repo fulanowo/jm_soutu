@@ -11,6 +11,12 @@ owner_qq = ""  # 留空则不限制
 # Napcat 机器人框架的 API 基础 URL
 napcat_base_url = "http://127.0.0.1:3000"
 
+# Napcat API 鉴权 Token（留空则不发送）
+napcat_token = "123456"
+
+# 启用 WSL 路径转换（Napcat 运行在 WSL 中时需设为 true）
+enable_wsl_path = true
+
 # PDF 最大页数限制
 max_pdf_pages = 300
 

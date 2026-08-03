@@ -151,12 +151,29 @@ def pdf_to_encrypted_zip(pdf_path: str, zip_path: str, password: str) -> str:
 # Napcat API 交互
 # =============================================================================
 
+def _convert_to_wsl_path(windows_path: str) -> str:
+    """将 Windows 绝对路径转换为 WSL 可访问的路径（/mnt/...）。
+
+    Args:
+        windows_path: Windows 路径，如 E:\\MaiM-with-u\\...\\file.dat
+
+    Returns:
+        WSL 路径，如 /mnt/e/MaiM-with-u/.../file.dat
+    """
+    if len(windows_path) >= 2 and windows_path[1] == ':':
+        drive = windows_path[0].lower()
+        rest = windows_path[2:].replace('\\', '/')
+        return f'/mnt/{drive}{rest}'
+    return windows_path.replace('\\', '/')
+
 async def upload_pdf_via_napcat(
     pdf_path: str,
     filename: str,
     scope: str,
     target_id: int,
     napcat_base: str,
+    token: str = "",
+    enable_wsl_path: bool = False,
     timeout: int = 60,
 ) -> Tuple[bool, str]:
     """通过 Napcat API 上传 PDF 文件。
@@ -171,22 +188,30 @@ async def upload_pdf_via_napcat(
         scope: "group" 群聊 或 "private" 私聊
         target_id: 群号或用户 ID
         napcat_base: Napcat API 基础 URL
+        token: Napcat API 鉴权 Token（为空时不发送）
+        enable_wsl_path: 是否将 Windows 路径转换为 WSL 路径
         timeout: 请求总超时（秒）
 
     Returns:
         (是否成功, 响应文本或错误信息)
     """
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    file_path_for_server = _convert_to_wsl_path(pdf_path) if enable_wsl_path else pdf_path
+
     if scope == "group":
         url = f"{napcat_base}/upload_group_file"
-        json_payload = {"group_id": target_id, "file": pdf_path, "name": filename}
+        json_payload = {"group_id": target_id, "file": file_path_for_server, "name": filename}
     else:
         url = f"{napcat_base}/upload_private_file"
-        json_payload = {"user_id": target_id, "file": pdf_path, "name": filename}
+        json_payload = {"user_id": target_id, "file": file_path_for_server, "name": filename}
 
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as sess:
         # 方式 1：JSON 方式（直接传递文件路径）
         try:
-            async with sess.post(url, json=json_payload) as response:
+            async with sess.post(url, json=json_payload, headers=headers) as response:
                 response_text = await response.text()
                 if response.status == 200:
                     try:
@@ -204,12 +229,15 @@ async def upload_pdf_via_napcat(
         else:
             form.add_field("user_id", str(target_id))
 
+        if token:
+            form.add_field("access_token", token)
+
         form.add_field("name", filename)
         file_handle = open(pdf_path, "rb")
         form.add_field("file", file_handle, filename=filename, content_type="application/pdf")
 
         try:
-            async with sess.post(url, data=form) as response:
+            async with sess.post(url, data=form, headers=headers) as response:
                 response_text = await response.text()
                 if response.status == 200:
                     try:
@@ -1018,6 +1046,8 @@ client:
         plugin_dir = os.path.dirname(os.path.abspath(__file__))
         jm_data_dir = self.get_config("jm.jm_data_dir","")
         napcat_base_url = self.get_config("jm.napcat_base_url")
+        napcat_token = self.get_config("jm.napcat_token", "")
+        enable_wsl_path = self.get_config("jm.enable_wsl_path", False)
         max_pdf_pages = self.get_config("jm.max_pdf_pages")
 
         success, chapter_count, error_msg = await check_album_chapters(
@@ -1116,11 +1146,11 @@ client:
         fake_extension = self.get_config("jm.fake_extension", ".dat")
 
         if use_encrypted_zip:
-            return await self._send_encrypted_zip(img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url, fake_extension)
+            return await self._send_encrypted_zip(img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url, napcat_token, enable_wsl_path, fake_extension)
         else:
-            return await self._send_pdf(img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url)
+            return await self._send_pdf(img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url, napcat_token, enable_wsl_path)
 
-    async def _send_encrypted_zip(self, img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url, fake_extension):
+    async def _send_encrypted_zip(self, img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url, napcat_token, enable_wsl_path, fake_extension):
         """生成PDF、加密压缩包并发送（伪装格式）"""
         safe_name = sanitize_filename(album_id)
         if use_chapter_range is not None:
@@ -1168,11 +1198,11 @@ client:
 
             if is_group:
                 ok, msg = await upload_pdf_via_napcat(
-                    fake_zip_path, f"{safe_name}{fake_extension}", "group", group_id, napcat_base_url
+                    fake_zip_path, f"{safe_name}{fake_extension}", "group", group_id, napcat_base_url, napcat_token, enable_wsl_path
                 )
             elif user_id:
                 ok, msg = await upload_pdf_via_napcat(
-                    fake_zip_path, f"{safe_name}{fake_extension}", "private", user_id, napcat_base_url
+                    fake_zip_path, f"{safe_name}{fake_extension}", "private", user_id, napcat_base_url, napcat_token, enable_wsl_path
                 )
             else:
                 await self.send_text("无法识别发送对象")
@@ -1204,7 +1234,7 @@ client:
                 pass
             return True, str(e), True
 
-    async def _send_pdf(self, img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url):
+    async def _send_pdf(self, img_paths, album_id, use_chapter_index, use_chapter_range, only_first_chapter, plugin_dir, napcat_base_url, napcat_token, enable_wsl_path):
         """生成并发送PDF"""
     # 生成 PDF
         safe_name = sanitize_filename(album_id)
@@ -1245,11 +1275,11 @@ client:
 
         if is_group:
             ok, msg = await upload_pdf_via_napcat(
-                pdf_path, f"{safe_name}.pdf", "group", group_id, napcat_base_url
+                pdf_path, f"{safe_name}.pdf", "group", group_id, napcat_base_url, napcat_token, enable_wsl_path
             )
         elif user_id:
             ok, msg = await upload_pdf_via_napcat(
-                pdf_path, f"{safe_name}.pdf", "private", user_id, napcat_base_url
+                pdf_path, f"{safe_name}.pdf", "private", user_id, napcat_base_url, napcat_token, enable_wsl_path
             )
         else:
             await self.send_text("无法识别发送对象")
@@ -1318,6 +1348,16 @@ class JMPlugin(BasePlugin):
                 type=str,
                 default="http://127.0.0.1:3000",
                 description="Napcat 机器人框架的 API 基础 URL"
+            ),
+            "napcat_token": ConfigField(
+                type=str,
+                default="",
+                description="Napcat API 鉴权 Token（留空则不发送）"
+            ),
+            "enable_wsl_path": ConfigField(
+                type=bool,
+                default=False,
+                description="是否将文件路径转换为 WSL 路径（Napcat 运行在 WSL 中时需启用）"
             ),
             "max_pdf_pages": ConfigField(
                 type=int,

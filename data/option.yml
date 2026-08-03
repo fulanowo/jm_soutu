@@ -1,2 +1,5 @@
 dir_rule:
-  base_dir: D:\MaiM-with-u\MaiBot\plugins\jm_plugin\data
+  base_dir: E:\MaiM-with-u\MaiBot\plugins\jm_soutu\data
+download:
+  threading:
+    image: 5

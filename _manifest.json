@@ -13,8 +13,16 @@
   },
   "homepage_url": "https://github.com/yumemi1",
   "repository_url": "https://github.com/yumemi1/jm_plugin",
-  "keywords": ["jmcomic", "download", "pdf",  "本子"],
-  "categories": ["Utility Tools", "External Integration"],
+  "keywords": [
+    "jmcomic",
+    "download",
+    "pdf",
+    "本子"
+  ],
+  "categories": [
+    "Utility Tools",
+    "External Integration"
+  ],
   "default_locale": "zh-CN",
   "plugin_info": {
     "is_built_in": false,
@@ -26,5 +34,6 @@
         "description": "下载 JM 本子为 PDF 并上传。用法：/jm ID 或 /jm ID 章节数"
       }
     ]
-  }
+  },
+  "id": "yumemi1.jm_plugin"
 }
