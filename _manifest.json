@@ -3,7 +3,7 @@
   "id": "yumemi1.jm_plugin",
   "version": "2.0.0",
   "name": "JM 本子下载插件",
-  "description": "基于 jmcomic 的本子下载插件，支持章节选择、PDF 合成、以图搜本与 Napcat 上传",
+  "description": "基于 jmcomic 的本子下载插件，支持章节选择、PDF 合成、以图搜本与 NapCat / SnowLuma 上传",
   "author": {
     "name": "yumemi1",
     "url": "https://github.com/yumemi1"

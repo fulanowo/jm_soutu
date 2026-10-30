@@ -16,14 +16,20 @@ jm_data_dir = ""
 # 主人qq: 控制能否下载图片（为空则所有人都可以下载）
 owner_qq = ""  # 留空则不限制
 
-# Napcat 机器人框架的 API 基础 URL
-napcat_base_url = "http://127.0.0.1:3000"
+# 机器人框架类型：snowluma 或 napcat
+framework = "snowluma"
 
-# Napcat API 鉴权 Token（留空则不发送）
-napcat_token = "123456"
+# 机器人框架 HTTP API 基础 URL
+api_base_url = "http://127.0.0.1:3000"
 
-# 启用 WSL 路径转换（Napcat 运行在 WSL 中时需设为 true）
-enable_wsl_path = true
+# API 鉴权 Token（留空则不发送）
+api_token = ""
+
+# Token 传递方式：header=Authorization: Bearer（两框架均支持）；query=URL 参数 access_token（SnowLuma 支持）
+auth_mode = "header"
+
+# 启用 WSL 路径转换（框架运行在 WSL 中时需设为 true）
+enable_wsl_path = false
 
 # PDF 最大页数限制
 max_pdf_pages = 300

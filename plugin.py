@@ -5,14 +5,14 @@ JM 本子下载插件
 概述：
 - 通过命令下载指定 ID 的 JMComic 本子
 - 支持多章节本子的全部下载或指定章节下载
-- 自动合成 PDF 并加密压缩上传到 QQ 群或私聊（Napcat）
+- 自动合成 PDF 并加密压缩上传到 QQ 群或私聊（NapCat / SnowLuma）
 
 作者：yumemi1
 项目：https://github.com/yumemi1/jm_plugin
 """
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import asyncio
 import base64
@@ -68,9 +68,11 @@ class JMSectionConfig(PluginConfigBase):
 
     jm_data_dir: str = Field(default="", description="JM 漫画下载目录，为空则使用 data/plugins/yumemi1.jm_plugin/")
     owner_qq: str = Field(default="", description="主人QQ号，只有此QQ号才能使用下载命令（为空则不限制）")
-    napcat_base_url: str = Field(default="http://127.0.0.1:3000", description="Napcat 机器人框架的 API 基础 URL")
-    napcat_token: str = Field(default="", description="Napcat API 鉴权 Token（留空则不发送）")
-    enable_wsl_path: bool = Field(default=False, description="是否将文件路径转换为 WSL 路径（Napcat 运行在 WSL 中时需启用）")
+    framework: Literal["snowluma", "napcat"] = Field(default="snowluma", description="机器人框架类型，决定上传接口方言与可用鉴权方式")
+    api_base_url: str = Field(default="http://127.0.0.1:3000", description="机器人框架 HTTP API 基础 URL")
+    api_token: str = Field(default="", description="API 鉴权 Token（留空则不发送）")
+    auth_mode: Literal["header", "query"] = Field(default="header", description="Token 传递方式：header=Authorization: Bearer（两框架均支持）；query=URL 参数 access_token（SnowLuma 支持）")
+    enable_wsl_path: bool = Field(default=False, description="是否将文件路径转换为 WSL 路径 /mnt/x/...（框架运行在 WSL 中时需启用）")
     max_pdf_pages: int = Field(default=300, description="PDF 最大页数限制")
     use_encrypted_zip: bool = Field(default=False, description="是否生成加密压缩包（密码为文件名）并伪装格式")
     fake_extension: str = Field(default=".dat", description="压缩包伪装的文件扩展名（如 .dat, .bin, .tmp 等）")
@@ -192,8 +194,12 @@ def pdf_to_encrypted_zip(pdf_path: str, zip_path: str, password: str) -> str:
 
 
 # =============================================================================
-# Napcat API 交互
+# 机器人框架文件上传 API（NapCat / SnowLuma 通用）
 # =============================================================================
+
+# 各框架文档声明的鉴权方式；未声明的组合仍照常发送，只在日志里提示
+_FRAMEWORK_AUTH_MODES = {"snowluma": ("header", "query"), "napcat": ("header",)}
+
 
 def _convert_to_wsl_path(windows_path: str) -> str:
     """将 Windows 绝对路径转换为 WSL 可访问的路径（/mnt/...）。
@@ -211,88 +217,122 @@ def _convert_to_wsl_path(windows_path: str) -> str:
     return windows_path.replace('\\', '/')
 
 
-async def upload_pdf_via_napcat(
-    pdf_path: str,
+def build_upload_request(
+    scope: str,
+    target_id: int,
+    file_path: str,
+    filename: str,
+    api_base: str,
+    token: str = "",
+    auth_mode: str = "header",
+    enable_wsl_path: bool = False,
+) -> Tuple[str, Dict[str, str], Dict[str, str], Dict[str, Any]]:
+    """组装文件上传请求。
+
+    Args:
+        scope: "group" 群聊 或 "private" 私聊
+        target_id: 群号或用户 ID
+        file_path: 文件本地路径
+        filename: 上传时展示的文件名
+        api_base: 机器人框架 API 基础 URL
+        token: API 鉴权 Token（为空时不发送）
+        auth_mode: "header"（Authorization: Bearer）或 "query"（access_token 参数）
+        enable_wsl_path: 是否将 Windows 路径转换为 WSL 路径
+
+    Returns:
+        (url, headers, params, payload)
+    """
+    path_for_server = _convert_to_wsl_path(file_path) if enable_wsl_path else file_path
+
+    if scope == "group":
+        url = f"{api_base}/upload_group_file"
+        payload: Dict[str, Any] = {"group_id": target_id, "file": path_for_server, "name": filename}
+    else:
+        url = f"{api_base}/upload_private_file"
+        payload = {"user_id": target_id, "file": path_for_server, "name": filename}
+
+    headers: Dict[str, str] = {}
+    params: Dict[str, str] = {}
+    if token:
+        if auth_mode == "query":
+            params["access_token"] = token
+        else:
+            headers["Authorization"] = f"Bearer {token}"
+    return url, headers, params, payload
+
+
+def parse_upload_response(status: int, text: str) -> Tuple[bool, str]:
+    """判定上传结果。
+
+    两个框架都返回 OneBot 风格响应体，且字段全部可选，
+    因此只有 status 明确为 "failed" 或 retcode 明确非 0 时才算失败，
+    字段缺失按成功处理。
+
+    Args:
+        status: HTTP 状态码
+        text: 响应体文本
+
+    Returns:
+        (是否成功, 响应文本或错误信息)
+    """
+    if status != 200:
+        return False, f"HTTP {status}: {text}"
+    try:
+        data = json.loads(text)
+    except Exception:
+        return True, text
+    if isinstance(data, dict):
+        retcode = data.get("retcode")
+        if data.get("status") == "failed" or retcode not in (None, 0):
+            detail = data.get("message") or data.get("wording") or ""
+            return False, f"status={data.get('status')} retcode={retcode} {detail}".strip()
+    return True, json.dumps(data, ensure_ascii=False)
+
+
+async def upload_file_via_api(
+    file_path: str,
     filename: str,
     scope: str,
     target_id: int,
-    napcat_base: str,
+    api_base: str,
     token: str = "",
+    auth_mode: str = "header",
+    framework: str = "snowluma",
     enable_wsl_path: bool = False,
     timeout: int = 60,
 ) -> Tuple[bool, str]:
-    """通过 Napcat API 上传 PDF 文件。
+    """通过机器人框架的 HTTP API 上传文件到群或私聊。
 
-    尝试两种方式上传：
-    1) JSON：传本地文件路径；失败则回退
-    2) FormData：上传二进制内容
+    NapCat 与 SnowLuma 的 /upload_group_file、/upload_private_file 协议一致，
+    仅走一次 JSON 请求，不再尝试 multipart 回退。
 
     Args:
-        pdf_path: PDF 文件本地路径
-        filename: 上传时的文件名
+        file_path: 文件本地路径
+        filename: 上传时展示的文件名
         scope: "group" 群聊 或 "private" 私聊
         target_id: 群号或用户 ID
-        napcat_base: Napcat API 基础 URL
-        token: Napcat API 鉴权 Token（为空时不发送）
+        api_base: 机器人框架 API 基础 URL
+        token: API 鉴权 Token（为空时不发送）
+        auth_mode: "header" 或 "query"
+        framework: "snowluma" 或 "napcat"，仅用于鉴权能力校验
         enable_wsl_path: 是否将 Windows 路径转换为 WSL 路径
         timeout: 请求总超时（秒）
 
     Returns:
         (是否成功, 响应文本或错误信息)
     """
-    headers = {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    url, headers, params, payload = build_upload_request(
+        scope, target_id, file_path, filename, api_base, token, auth_mode, enable_wsl_path,
+    )
+    if token and auth_mode not in _FRAMEWORK_AUTH_MODES.get(framework, ("header",)):
+        logger.warning("%s 文档未声明 %s 鉴权方式，若返回 401 请改用 header", framework, auth_mode)
 
-    file_path_for_server = _convert_to_wsl_path(pdf_path) if enable_wsl_path else pdf_path
-
-    if scope == "group":
-        url = f"{napcat_base}/upload_group_file"
-        json_payload = {"group_id": target_id, "file": file_path_for_server, "name": filename}
-    else:
-        url = f"{napcat_base}/upload_private_file"
-        json_payload = {"user_id": target_id, "file": file_path_for_server, "name": filename}
-
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as sess:
-        # 方式 1：JSON 方式（直接传递文件路径）
-        try:
-            async with sess.post(url, json=json_payload, headers=headers) as response:
-                response_text = await response.text()
-                if response.status == 200:
-                    try:
-                        # 尝试格式化 JSON 响应
-                        return True, json.dumps(json.loads(response_text), ensure_ascii=False)
-                    except Exception:
-                        return True, response_text
-        except Exception:
-            pass  # 静默失败，继续尝试方式 2
-
-        # 方式 2：FormData 方式（上传文件二进制）
-        form = aiohttp.FormData()
-        if scope == "group":
-            form.add_field("group_id", str(target_id))
-        else:
-            form.add_field("user_id", str(target_id))
-
-        if token:
-            form.add_field("access_token", token)
-
-        form.add_field("name", filename)
-        file_handle = open(pdf_path, "rb")
-        form.add_field("file", file_handle, filename=filename, content_type="application/pdf")
-
-        try:
-            async with sess.post(url, data=form, headers=headers) as response:
-                response_text = await response.text()
-                if response.status == 200:
-                    try:
-                        return True, json.dumps(json.loads(response_text), ensure_ascii=False)
-                    except Exception:
-                        return True, response_text
-                else:
-                    return False, f"HTTP {response.status}: {response_text}"
-        finally:
-            file_handle.close()
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as sess:
+            async with sess.post(url, json=payload, headers=headers, params=params) as response:
+                return parse_upload_response(response.status, await response.text())
+    except Exception as e:
+        return False, f"请求异常: {e}"
 
 
 # =============================================================================
@@ -716,7 +756,7 @@ class JMPlugin(MaiBotPlugin):
 
     本插件为 MaiBot 提供 JMComic 图集下载功能。
     通过集成 jmcomic 库实现图集爬取，使用 Pillow 进行 PDF 转换，
-    最后通过 Napcat API 将文件上传到 QQ。
+    最后通过机器人框架 API（NapCat / SnowLuma）将文件上传到 QQ。
 
     主要特性：
     - 支持单章节和多章节漫画
@@ -770,8 +810,8 @@ class JMPlugin(MaiBotPlugin):
         """从命令 kwargs 中提取发送者用户 ID。"""
         return str(kwargs.get("user_id") or "")
 
-    def _get_napcat_target(self, kwargs: Dict[str, Any]) -> Tuple[str, int]:
-        """从消息中解析 Napcat 上传目标。
+    def _get_upload_target(self, kwargs: Dict[str, Any]) -> Tuple[str, int]:
+        """从消息中解析文件上传目标。
 
         Returns:
             (scope, target_id)：scope 为 "group" 或 "private"；无法识别时 ("", 0)
@@ -1155,14 +1195,15 @@ client:
 
             shutil.move(zip_path, fake_zip_path)
 
-            scope, target_id = self._get_napcat_target(kwargs)
+            scope, target_id = self._get_upload_target(kwargs)
             if not scope:
                 await self.ctx.send.text("无法识别发送对象", stream_id)
                 return True, None, 2
 
-            ok, msg = await upload_pdf_via_napcat(
+            ok, msg = await upload_file_via_api(
                 fake_zip_path, f"{safe_name}{fake_extension}", scope, target_id,
-                self.config.jm.napcat_base_url, self.config.jm.napcat_token,
+                self.config.jm.api_base_url, self.config.jm.api_token,
+                self.config.jm.auth_mode, self.config.jm.framework,
                 self.config.jm.enable_wsl_path,
             )
 
@@ -1212,14 +1253,15 @@ client:
             return True, str(e), 2
 
         # 确定上传目标
-        scope, target_id = self._get_napcat_target(kwargs)
+        scope, target_id = self._get_upload_target(kwargs)
         if not scope:
             await self.ctx.send.text("无法识别发送对象", stream_id)
             return True, None, 2
 
-        ok, msg = await upload_pdf_via_napcat(
+        ok, msg = await upload_file_via_api(
             pdf_path, f"{safe_name}.pdf", scope, target_id,
-            self.config.jm.napcat_base_url, self.config.jm.napcat_token,
+            self.config.jm.api_base_url, self.config.jm.api_token,
+            self.config.jm.auth_mode, self.config.jm.framework,
             self.config.jm.enable_wsl_path,
         )
 

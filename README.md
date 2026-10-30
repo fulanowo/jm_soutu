@@ -1,6 +1,6 @@
 # JM 插件 (JMComic Plugin for MaiBot)
 
-> 基于 `jmcomic` 的 MaiBot 插件，支持专辑/章节下载、PDF 合成、加密压缩、以图搜本与 Napcat 上传
+> 基于 `jmcomic` 的 MaiBot 插件，支持专辑/章节下载、PDF 合成、加密压缩、以图搜本与 NapCat / SnowLuma 上传
 
 ## 📖 简介
 
@@ -8,7 +8,7 @@ JM 搜图插件是为 [MaiBot](https://github.com/MaiM-with-u/MaiBot) 开发的�
 - 解析并下载指定本子（支持多章节选择）
 - 将图片合并为 PDF（可限制最大页数）
 - 生成加密压缩包并伪装格式（可选）
-- 通过 Napcat 接口上传到 QQ 群或私聊
+- 通过 NapCat / SnowLuma 接口上传到 QQ 群或私聊
 - 支持以图搜本和关键词搜索
 - 支持主人权限控制
 
@@ -21,7 +21,7 @@ JM 搜图插件是为 [MaiBot](https://github.com/MaiM-with-u/MaiBot) 开发的�
 - 🔍 **以图搜本**：发送图片后使用 `/jm搜图` 搜索本子
 - 🔎 **关键词搜索**：使用 `/jm 关键词` 搜索本子
 - 👤 **权限控制**：可设置主人 QQ 号限制下载权限
-- 🚚 **Napcat 上传**：支持群聊/私聊文件上传
+- 🚚 **群/私聊上传**：兼容 NapCat 与 SnowLuma 的文件上传接口
 - 🔢 **页数限制**：可配置 `max_pdf_pages` 限制 PDF 页数
 - 🧹 **自动清理**：完成后自动清理临时文件
 
@@ -58,7 +58,11 @@ enabled = true
 
 [jm]
 jm_data_dir = ""                       # 下载目录（留空则使用 data/plugins/yumemi1.jm_plugin/）
-napcat_base_url = "http://127.0.0.1:3000"  # Napcat 基础 URL
+framework = "snowluma"                 # 机器人框架：snowluma 或 napcat
+api_base_url = "http://127.0.0.1:3000"  # 框架 HTTP API 基础 URL
+api_token = ""                         # API 鉴权 Token（留空则不发送）
+auth_mode = "header"                   # Token 传递方式：header 或 query
+enable_wsl_path = false                # 框架运行在 WSL 中时设为 true
 max_pdf_pages = 300                     # PDF 最大页数
 owner_qq = ""                          # 主人 QQ 号（留空则不限制下载）
 use_encrypted_zip = true                # 是否使用加密压缩包（密码为文件名）
@@ -77,8 +81,14 @@ proxy = ""                             # 搜图代理（可选）
 
 **[jm] 配置项：**
 - `jm_data_dir`：图集下载存储位置（相对/绝对路径均可；留空则使用 `data/plugins/yumemi1.jm_plugin/`）
-- `napcat_base_url`：Napcat 上传 API 基础地址（默认 http://127.0.0.1:3000）
-  - Napcat 需要启用 HTTP 服务器，端口可在 Napcat 配置中修改
+- `framework`：机器人框架类型，`snowluma` 或 `napcat`（WebUI 中为下拉框）
+- `api_base_url`：上传 API 基础地址（默认 http://127.0.0.1:3000）
+  - 框架需启用 HTTP 服务器，端口可在框架配置中修改
+- `api_token`：API 鉴权 Token（留空则不发送）
+- `auth_mode`：Token 传递方式，`header` 为 `Authorization: Bearer <token>`（两框架均支持），`query` 为 URL 参数 `access_token`（SnowLuma 支持）
+  - SnowLuma 两种都支持；NapCat 文档只声明了 header
+- `enable_wsl_path`：框架运行在 WSL 中时启用，路径会转换为 `/mnt/x/...`
+- 旧版的 `napcat_base_url` / `napcat_token` 已分别改名为 `api_base_url` / `api_token`，升级后需手动改 `config.toml`，否则会回落到默认值（URL 默认值相同，Token 会丢）
 - `max_pdf_pages`：限制每个 PDF 的最大页数，防止过大文件
 - `owner_qq`：主人 QQ 号，只有此 QQ 号才能下载（留空则不限制）
 - `use_encrypted_zip`：是否将 PDF 加密压缩并伪装格式（默认 false）
@@ -171,8 +181,8 @@ proxy = ""                             # 搜图代理（可选）
 
 ## ⚠️ 注意事项
 
-- 请确保 `napcat_base_url` 正确且 Napcat 服务已启动
-  - Napcat 需要启用 HTTP 服务器，默认端口 3000，可在 Napcat 配置中修改
+- 请确保 `api_base_url` 正确且机器人框架服务已启动
+  - 框架需要启用 HTTP 服务器，默认端口 3000，可在框架配置中修改
 - 生成 PDF 时可能占用较多内存与磁盘空间，建议设置合理的 `max_pdf_pages`
 - 网络环境可能影响下载速度；`jmcomic` 在某些网络条件下需要额外配置（代理/Cookie）
 - 使用加密压缩包时，文件体积会减小约 30-50%，但用户需要手动解压
@@ -185,7 +195,7 @@ proxy = ""                             # 搜图代理（可选）
 
 - [JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python) - 图源与下载框架
 - [MaiBot](https://github.com/MaiM-with-u/MaiBot) - 优秀的 QQ 机器人宿主框架
-- [Napcat](https://github.com/NapNeko/NapcatQQ) - QQ 上传接口支持
+- [NapCat](https://github.com/NapNeko/NapcatQQ) / [SnowLuma](https://snowluma.github.io) - QQ 上传接口支持
 
 ## 📄 许可证
 
