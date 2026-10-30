@@ -63,6 +63,8 @@ api_base_url = "http://127.0.0.1:3000"  # 框架 HTTP API 基础 URL
 api_token = ""                         # API 鉴权 Token（留空则不发送）
 auth_mode = "header"                   # Token 传递方式：header 或 query
 enable_wsl_path = false                # 框架运行在 WSL 中时设为 true
+path_map_from = ""                     # 本进程的路径前缀，如 /MaiMBot（Docker 部署用）
+path_map_to = ""                       # 框架宿主机上的对应前缀，如 E:/MaiM-with-u/MaiBot/data/MaiBot
 max_pdf_pages = 300                     # PDF 最大页数
 owner_qq = ""                          # 主人 QQ 号（留空则不限制下载）
 use_encrypted_zip = true                # 是否使用加密压缩包（密码为文件名）
@@ -88,6 +90,7 @@ proxy = ""                             # 搜图代理（可选）
 - `auth_mode`：Token 传递方式，`header` 为 `Authorization: Bearer <token>`（两框架均支持），`query` 为 URL 参数 `access_token`（SnowLuma 支持）
   - SnowLuma 两种都支持；NapCat 文档只声明了 header
 - `enable_wsl_path`：框架运行在 WSL 中时启用，路径会转换为 `/mnt/x/...`
+- `path_map_from` / `path_map_to`：路径前缀映射，两者都留空则不映射。Docker 部署且 Bot 与框架不在同一文件系统时必填，例如 `path_map_from = "/MaiMBot/plugins/jm_soutu"`、`path_map_to = "/app/data/plugins/jm_soutu"`
 - 旧版的 `napcat_base_url` / `napcat_token` 已分别改名为 `api_base_url` / `api_token`，升级后需手动改 `config.toml`，否则会回落到默认值（URL 默认值相同，Token 会丢）
 - `max_pdf_pages`：限制每个 PDF 的最大页数，防止过大文件
 - `owner_qq`：主人 QQ 号，只有此 QQ 号才能下载（留空则不限制）
@@ -183,6 +186,7 @@ proxy = ""                             # 搜图代理（可选）
 
 - 请确保 `api_base_url` 正确且机器人框架服务已启动
   - 框架需要启用 HTTP 服务器，默认端口 3000，可在框架配置中修改
+- **Docker 部署**：Bot 在容器里、框架在宿主机时，插件写出的 `/MaiMBot/plugins/...` 路径框架看不到，会报 `ENOENT ... realpath`。此时填 `path_map_from = "/MaiMBot"` 和 `path_map_to = "<宿主机上对应目录>"`，并用 `docker inspect <容器名> --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'` 确认宿主机路径
 - 生成 PDF 时可能占用较多内存与磁盘空间，建议设置合理的 `max_pdf_pages`
 - 网络环境可能影响下载速度；`jmcomic` 在某些网络条件下需要额外配置（代理/Cookie）
 - 使用加密压缩包时，文件体积会减小约 30-50%，但用户需要手动解压

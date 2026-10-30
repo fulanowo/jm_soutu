@@ -55,8 +55,16 @@ class PluginSectionConfig(PluginConfigBase):
     __ui_icon__ = "settings"
     __ui_order__ = 0
 
-    config_version: str = Field(default="1.0.0", description="配置文件版本号")
-    enabled: bool = Field(default=True, description="是否启用插件")
+    config_version: str = Field(
+        default="1.0.0",
+        description="配置文件版本号",
+        json_schema_extra={"label": "配置版本", "hint": "与插件配置模型保持一致，请勿手动修改"},
+    )
+    enabled: bool = Field(
+        default=True,
+        description="是否启用插件",
+        json_schema_extra={"label": "启用插件", "hint": "关闭后插件的命令不再响应"},
+    )
 
 
 class JMSectionConfig(PluginConfigBase):
@@ -66,16 +74,75 @@ class JMSectionConfig(PluginConfigBase):
     __ui_icon__ = "download"
     __ui_order__ = 1
 
-    jm_data_dir: str = Field(default="", description="JM 漫画下载目录，为空则使用 data/plugins/yumemi1.jm_plugin/")
-    owner_qq: str = Field(default="", description="主人QQ号，只有此QQ号才能使用下载命令（为空则不限制）")
-    framework: Literal["snowluma", "napcat"] = Field(default="snowluma", description="机器人框架类型，决定上传接口方言与可用鉴权方式")
-    api_base_url: str = Field(default="http://127.0.0.1:3000", description="机器人框架 HTTP API 基础 URL")
-    api_token: str = Field(default="", description="API 鉴权 Token（留空则不发送）")
-    auth_mode: Literal["header", "query"] = Field(default="header", description="Token 传递方式：header=Authorization: Bearer（两框架均支持）；query=URL 参数 access_token（SnowLuma 支持）")
-    enable_wsl_path: bool = Field(default=False, description="是否将文件路径转换为 WSL 路径 /mnt/x/...（框架运行在 WSL 中时需启用）")
-    max_pdf_pages: int = Field(default=300, description="PDF 最大页数限制")
-    use_encrypted_zip: bool = Field(default=False, description="是否生成加密压缩包（密码为文件名）并伪装格式")
-    fake_extension: str = Field(default=".dat", description="压缩包伪装的文件扩展名（如 .dat, .bin, .tmp 等）")
+    jm_data_dir: str = Field(
+        default="",
+        description="JM 漫画下载目录，为空则使用 data/plugins/yumemi1.jm_plugin/",
+        json_schema_extra={"label": "下载目录", "hint": "留空则使用 data/plugins/yumemi1.jm_plugin/"},
+    )
+    owner_qq: str = Field(
+        default="",
+        description="主人QQ号，只有此QQ号才能使用下载命令（为空则不限制）",
+        json_schema_extra={"label": "主人 QQ", "hint": "只有该 QQ 号能执行下载命令，留空则不限制"},
+    )
+    framework: Literal["snowluma", "napcat"] = Field(
+        default="snowluma",
+        description="机器人框架类型，决定上传接口方言与可用鉴权方式",
+        json_schema_extra={"label": "机器人框架", "hint": "选择 snowluma 或 napcat；两者上传接口一致，仅鉴权能力不同"},
+    )
+    api_base_url: str = Field(
+        default="http://127.0.0.1:3000",
+        description="机器人框架 HTTP API 基础 URL",
+        json_schema_extra={"label": "API 地址", "hint": "框架 HTTP 服务地址，默认 http://127.0.0.1:3000"},
+    )
+    api_token: str = Field(
+        default="",
+        description="API 鉴权 Token（留空则不发送）",
+        json_schema_extra={"label": "API Token", "hint": "框架的 access_token，留空则不发送鉴权信息"},
+    )
+    auth_mode: Literal["header", "query"] = Field(
+        default="header",
+        description="Token 传递方式：header=Authorization: Bearer（两框架均支持）；query=URL 参数 access_token（SnowLuma 支持）",
+        json_schema_extra={
+            "label": "鉴权方式",
+            "hint": "header 走 Authorization: Bearer（两框架都支持）；query 走 URL 参数 access_token（SnowLuma 支持）",
+        },
+    )
+    enable_wsl_path: bool = Field(
+        default=False,
+        description="是否将文件路径转换为 WSL 路径 /mnt/x/...（框架运行在 WSL 中时需启用）",
+        json_schema_extra={"label": "WSL 路径转换", "hint": "框架运行在 WSL 中时启用，路径会转成 /mnt/x/..."},
+    )
+    path_map_from: str = Field(
+        default="",
+        description="路径映射：本进程看到的路径前缀，如 /MaiMBot（Docker 部署且框架运行在宿主机时必填）",
+        json_schema_extra={
+            "label": "路径映射（源）",
+            "hint": "插件所在容器里看到的插件目录，如 /MaiMBot/plugins/jm_soutu；与下一项都留空则不映射",
+        },
+    )
+    path_map_to: str = Field(
+        default="",
+        description="路径映射：框架所在环境里的对应路径前缀",
+        json_schema_extra={
+            "label": "路径映射（目标）",
+            "hint": "框架所在环境里同一目录的路径，如 /app/data/plugins/jm_soutu；Docker 部署填不对会报 ENOENT",
+        },
+    )
+    max_pdf_pages: int = Field(
+        default=300,
+        description="PDF 最大页数限制",
+        json_schema_extra={"label": "PDF 最大页数", "hint": "超出部分截断，防止文件过大"},
+    )
+    use_encrypted_zip: bool = Field(
+        default=False,
+        description="是否生成加密压缩包（密码为文件名）并伪装格式",
+        json_schema_extra={"label": "加密压缩包", "hint": "开启后发送加密 zip 并改名为伪装扩展名，解压密码为文件名"},
+    )
+    fake_extension: str = Field(
+        default=".dat",
+        description="压缩包伪装的文件扩展名（如 .dat, .bin, .tmp 等）",
+        json_schema_extra={"label": "伪装扩展名", "hint": "如 .dat / .bin / .tmp，仅在启用加密压缩包时生效"},
+    )
 
 
 class SotuSectionConfig(PluginConfigBase):
@@ -85,8 +152,16 @@ class SotuSectionConfig(PluginConfigBase):
     __ui_icon__ = "image"
     __ui_order__ = 2
 
-    api_key: str = Field(default="1115d151d73f404c1522bdf28542a50b42c27192", description="SauceNAO API Key (必填，否则会有搜索限制)")
-    proxy: str = Field(default="", description="搜图使用的代理地址 (http://... 或 socks5://...)，为空则直连")
+    api_key: str = Field(
+        default="1115d151d73f404c1522bdf28542a50b42c27192",
+        description="SauceNAO API Key (必填，否则会有搜索限制)",
+        json_schema_extra={"label": "SauceNAO Key", "hint": "必填，否则搜图有额度限制"},
+    )
+    proxy: str = Field(
+        default="",
+        description="搜图使用的代理地址 (http://... 或 socks5://...)，为空则直连",
+        json_schema_extra={"label": "代理地址", "hint": "如 http://127.0.0.1:7890 或 socks5://...，留空则直连；同时用于 JM 搜索"},
+    )
 
 
 class JMPluginConfig(PluginConfigBase):
@@ -217,6 +292,28 @@ def _convert_to_wsl_path(windows_path: str) -> str:
     return windows_path.replace('\\', '/')
 
 
+def _map_path_prefix(path: str, from_prefix: str, to_prefix: str) -> str:
+    """把本进程内的路径前缀替换为框架所在主机上的路径前缀。
+
+    Docker 部署时插件写在容器里（如 /MaiMBot/plugins/...），
+    框架跑在宿主机上，原样发过去 realpath 必然 ENOENT。
+
+    Args:
+        path: 待转换的路径
+        from_prefix: 本进程内的前缀，留空表示不映射
+        to_prefix: 目标主机上的前缀，留空表示不映射
+
+    Returns:
+        映射后的路径；前缀不匹配时原样返回
+    """
+    if not from_prefix or not to_prefix:
+        return path
+    source = from_prefix.rstrip("/\\")
+    if path == source or path.startswith((source + "/", source + "\\")):
+        return to_prefix.rstrip("/\\") + path[len(source):]
+    return path
+
+
 def build_upload_request(
     scope: str,
     target_id: int,
@@ -226,6 +323,8 @@ def build_upload_request(
     token: str = "",
     auth_mode: str = "header",
     enable_wsl_path: bool = False,
+    path_map_from: str = "",
+    path_map_to: str = "",
 ) -> Tuple[str, Dict[str, str], Dict[str, str], Dict[str, Any]]:
     """组装文件上传请求。
 
@@ -238,11 +337,14 @@ def build_upload_request(
         token: API 鉴权 Token（为空时不发送）
         auth_mode: "header"（Authorization: Bearer）或 "query"（access_token 参数）
         enable_wsl_path: 是否将 Windows 路径转换为 WSL 路径
+        path_map_from: 本进程内的路径前缀（Docker 部署时为容器内路径）
+        path_map_to: 框架所在主机上的对应路径前缀
 
     Returns:
         (url, headers, params, payload)
     """
     path_for_server = _convert_to_wsl_path(file_path) if enable_wsl_path else file_path
+    path_for_server = _map_path_prefix(path_for_server, path_map_from, path_map_to)
 
     if scope == "group":
         url = f"{api_base}/upload_group_file"
@@ -299,6 +401,8 @@ async def upload_file_via_api(
     auth_mode: str = "header",
     framework: str = "snowluma",
     enable_wsl_path: bool = False,
+    path_map_from: str = "",
+    path_map_to: str = "",
     timeout: int = 60,
 ) -> Tuple[bool, str]:
     """通过机器人框架的 HTTP API 上传文件到群或私聊。
@@ -316,6 +420,8 @@ async def upload_file_via_api(
         auth_mode: "header" 或 "query"
         framework: "snowluma" 或 "napcat"，仅用于鉴权能力校验
         enable_wsl_path: 是否将 Windows 路径转换为 WSL 路径
+        path_map_from: 本进程内的路径前缀（Docker 部署时为容器内路径）
+        path_map_to: 框架所在主机上的对应路径前缀
         timeout: 请求总超时（秒）
 
     Returns:
@@ -323,6 +429,7 @@ async def upload_file_via_api(
     """
     url, headers, params, payload = build_upload_request(
         scope, target_id, file_path, filename, api_base, token, auth_mode, enable_wsl_path,
+        path_map_from, path_map_to,
     )
     if token and auth_mode not in _FRAMEWORK_AUTH_MODES.get(framework, ("header",)):
         logger.warning("%s 文档未声明 %s 鉴权方式，若返回 401 请改用 header", framework, auth_mode)
@@ -1205,6 +1312,7 @@ client:
                 self.config.jm.api_base_url, self.config.jm.api_token,
                 self.config.jm.auth_mode, self.config.jm.framework,
                 self.config.jm.enable_wsl_path,
+                self.config.jm.path_map_from, self.config.jm.path_map_to,
             )
 
             if not ok:
@@ -1263,6 +1371,7 @@ client:
             self.config.jm.api_base_url, self.config.jm.api_token,
             self.config.jm.auth_mode, self.config.jm.framework,
             self.config.jm.enable_wsl_path,
+            self.config.jm.path_map_from, self.config.jm.path_map_to,
         )
 
         if not ok:

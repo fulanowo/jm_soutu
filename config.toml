@@ -31,6 +31,12 @@ auth_mode = "header"
 # 启用 WSL 路径转换（框架运行在 WSL 中时需设为 true）
 enable_wsl_path = false
 
+# 路径映射：本进程看到的路径前缀，如 /MaiMBot（Docker 部署且框架在宿主机时填写）
+path_map_from = ""
+
+# 路径映射：框架所在主机上的对应路径前缀，如 E:/MaiM-with-u/MaiBot/data/MaiBot
+path_map_to = ""
+
 # PDF 最大页数限制
 max_pdf_pages = 300
 
